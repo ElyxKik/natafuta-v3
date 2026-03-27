@@ -14,7 +14,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user as any).userType !== 'agent') {
@@ -22,6 +22,7 @@ export async function POST(
   }
 
   try {
+    const { id } = await params;
     const formData = await req.formData();
     const file = formData.get('file') as File;
 
@@ -41,7 +42,7 @@ export async function POST(
 
     // Check if missing person exists
     const person = await prisma.missingPerson.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!person) {
@@ -51,7 +52,7 @@ export async function POST(
     // Generate unique filename
     const timestamp = Date.now();
     const ext = file.name.split('.').pop();
-    const fileName = `${params.id}-${timestamp}.${ext}`;
+    const fileName = `${id}-${timestamp}.${ext}`;
     const filePath = path.join(UPLOAD_DIR, fileName);
 
     // Save file
@@ -61,7 +62,7 @@ export async function POST(
     // Save to database
     const photo = await prisma.missingPersonPhoto.create({
       data: {
-        missingPersonId: params.id,
+        missingPersonId: id,
         fileName,
         fileSize: file.size,
         mimeType: file.type,
@@ -77,11 +78,12 @@ export async function POST(
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const photos = await prisma.missingPersonPhoto.findMany({
-      where: { missingPersonId: params.id },
+      where: { missingPersonId: id },
       orderBy: { uploadedAt: 'desc' },
     });
 
@@ -93,7 +95,7 @@ export async function GET(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user as any).userType !== 'agent') {

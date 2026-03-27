@@ -10,7 +10,7 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'missing-person
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user as any).userType !== 'agent') {
@@ -18,6 +18,7 @@ export async function POST(
   }
 
   try {
+    const { id } = await params;
     const { tempFileName } = await req.json();
     if (!tempFileName) return NextResponse.json({ error: 'tempFileName requis.' }, { status: 400 });
 
@@ -31,7 +32,7 @@ export async function POST(
 
     // Move file from temp to missing-persons
     const ext = tempFileName.split('.').pop();
-    const fileName = `${params.id}-${Date.now()}.${ext}`;
+    const fileName = `${id}-${Date.now()}.${ext}`;
     const destPath = path.join(UPLOAD_DIR, fileName);
     fs.renameSync(tempPath, destPath);
 
@@ -41,7 +42,7 @@ export async function POST(
     const fileSize = fs.statSync(destPath).size;
 
     const photo = await prisma.missingPersonPhoto.create({
-      data: { missingPersonId: params.id, fileName, fileSize, mimeType },
+      data: { missingPersonId: id, fileName, fileSize, mimeType },
     });
 
     return NextResponse.json(photo, { status: 201 });
