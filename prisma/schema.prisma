@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  userType      String    @default("visitor") // agent or visitor
+  phoneNumber   String?
+  address       String?
+  organization  String?
+  badgeNumber   String?
+  bio           String?
+  isVerified    Boolean   @default(false)
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  createdNotices MissingPerson[] @relation("CreatedBy")
+  submittedSightings Sighting[] @relation("SubmittedBy")
+  reviewedSightings Sighting[] @relation("ReviewedBy")
+  familySearches FamilyMember[] @relation("Searcher")
+  verifiedMatches FamilyMatch[] @relation("VerifiedBy")
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model MissingPerson {
+  id                    String   @id @default(cuid())
+  title                 String
+  fullName              String
+  age                   Int?
+  dateOfBirth           DateTime?
+  dateMissing           DateTime
+  lastKnownLocation     String?
+  description           String
+  physicalDescription   String?
+  medicalConditions     String?
+  contactPerson         String?
+  contactPhone          String?
+  urgencyLevel          String   @default("medium") // low, medium, high, critical
+  gender                String?  // male, female, unknown
+  ethnicity             String?  // ethnie / tribu
+  languages             String?  // langues parlées
+  circumstances         String?  // circonstances de disparition
+  fatherName            String?  // nom du père
+  motherName            String?  // nom de la mère
+  originLocation        String?  // lieu d'origine / province
+  imageUrl              String?
+  status                String   @default("active") // active, found, closed
+  aiCrossLinks          String?  // JSON string of cross-links detected by AI
+  createdById           String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  createdBy             User     @relation("CreatedBy", fields: [createdById], references: [id])
+  sightings             Sighting[]
+  familyMembersSearching FamilyMember[]
+  familyMatches         FamilyMatch[]
+  photos                MissingPersonPhoto[]
+}
+
+model MissingPersonPhoto {
+  id                String   @id @default(cuid())
+  missingPersonId   String
+  fileName          String
+  fileSize          Int
+  mimeType          String
+  uploadedAt        DateTime @default(now())
+
+  missingPerson     MissingPerson @relation(fields: [missingPersonId], references: [id], onDelete: Cascade)
+}
+
+model Sighting {
+  id                String   @id @default(cuid())
+  missingPersonId   String
+  content           String
+  location          String?
+  contactInfo       String?
+  status            String   @default("pending") // pending, reviewed, verified, false
+  submittedById     String?
+  submittedAt       DateTime @default(now())
+  reviewedById      String?
+  reviewedAt        DateTime?
+
+  missingPerson     MissingPerson @relation(fields: [missingPersonId], references: [id], onDelete: Cascade)
+  submittedBy       User?    @relation("SubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy        User?    @relation("ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+}
+
+model FamilyMember {
+  id                String   @id @default(cuid())
+  searcherId        String
+  missingPersonId   String
+  relationship      String   // parent, child, sibling, spouse, grandparent, grandchild, aunt_uncle, cousin, other
+  fullName          String
+  age               Int?
+  dateOfBirth       DateTime?
+  contactInfo       String?
+  location          String?  // localisation du chercheur
+  physicalDescription String? // description physique du disparu selon le chercheur
+  createdAt         DateTime @default(now())
+
+  searcher          User     @relation("Searcher", fields: [searcherId], references: [id], onDelete: Cascade)
+  missingPerson     MissingPerson @relation(fields: [missingPersonId], references: [id], onDelete: Cascade)
+  matches           FamilyMatch[]
+}
+
+model FamilyMatch {
+  id                String   @id @default(cuid())
+  missingPersonId   String
+  familyMemberId    String
+  confidenceScore   Float
+  matchType         String   // name_similarity, age_proximity, location_match, combined
+  status            String   @default("pending") // pending, verified, confirmed, rejected
+  nameSimilarity    Float    @default(0)
+  ageSimilarity     Float    @default(0)
+  locationSimilarity Float   @default(0)
+  notes             String?
+  verifiedById      String?
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  aiConfidenceScore Float?
+  aiSummary         String?
+  aiFactors         String?   // JSON string
+  aiAnalyzedAt      DateTime?
+
+  missingPerson     MissingPerson @relation(fields: [missingPersonId], references: [id], onDelete: Cascade)
+  familyMember      FamilyMember @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+  verifiedBy        User?    @relation("VerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@unique([missingPersonId, familyMemberId])
+}
