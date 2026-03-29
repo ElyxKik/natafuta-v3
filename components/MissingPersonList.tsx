@@ -28,17 +28,45 @@ export function MissingPersonListContent() {
 
   const fetchPersons = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (status) params.set('status', status);
-    if (urgencyLevel) params.set('urgency_level', urgencyLevel);
-    params.set('page', String(page));
-    const res = await fetch(`/api/missing-persons?${params}`);
-    const data = await res.json();
-    setPersons(data.persons ?? []);
-    setTotal(data.total ?? 0);
-    setTotalPages(data.totalPages ?? 1);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (status) params.set('status', status);
+      if (urgencyLevel) params.set('urgency_level', urgencyLevel);
+      params.set('page', String(page));
+      const res = await fetch(`/api/missing-persons?${params}`);
+      
+      if (!res.ok) {
+        console.error('API error:', res.status, res.statusText);
+        setPersons([]);
+        setTotal(0);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+
+      const text = await res.text();
+      if (!text) {
+        console.error('Empty response from API');
+        setPersons([]);
+        setTotal(0);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+
+      const data = JSON.parse(text);
+      setPersons(data.persons ?? []);
+      setTotal(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 1);
+    } catch (error) {
+      console.error('Fetch error:', error);
+      setPersons([]);
+      setTotal(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
   }, [search, status, urgencyLevel, page]);
 
   useEffect(() => { fetchPersons(); }, [fetchPersons]);
