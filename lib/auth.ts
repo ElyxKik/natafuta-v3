@@ -53,13 +53,26 @@ export const authOptions: NextAuthOptions = {
         token.userType = (user as any).userType;
         token.isAdmin = (user as any).isAdmin;
       }
+
+      if (token.id) {
+        const currentUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { userType: true, isAdmin: true },
+        });
+
+        if (currentUser) {
+          token.userType = currentUser.userType;
+          token.isAdmin = currentUser.isAdmin;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id as string;
-        (session.user as any).userType = token.userType as string;
-        (session.user as any).isAdmin = token.isAdmin as boolean;
+        (session.user as any).userType = (token.userType as string) ?? 'visitor';
+        (session.user as any).isAdmin = Boolean(token.isAdmin);
       }
       return session;
     },

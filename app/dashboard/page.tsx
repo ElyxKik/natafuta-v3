@@ -67,11 +67,14 @@ export default function DashboardPage() {
   const [matchResult, setMatchResult] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   const agentName = (session?.user as any)?.name ?? 'Agent';
+  const isAgent = (session?.user as any)?.userType === 'agent';
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/login');
-    if (status === 'authenticated' && (session?.user as any)?.userType !== 'agent') router.push('/');
-  }, [status, session, router]);
+    if (status === 'authenticated' && !isAgent) router.push('/');
+    if (status === 'loading') return;
+    if (status !== 'authenticated' || !isAgent) setLoading(false);
+  }, [status, session, router, isAgent]);
 
   const loadData = () => {
     setError(null);
@@ -126,10 +129,10 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (status === 'authenticated' && (session?.user as any)?.userType === 'agent') {
+    if (status === 'authenticated' && isAgent) {
       loadData();
     }
-  }, [status, session]);
+  }, [status, isAgent]);
 
   async function runMatching() {
     setRunningMatch(true); setMatchResult(null);
@@ -153,22 +156,27 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) return (
+  if (loading || status === 'loading') return (
     <div className="space-y-6 animate-pulse">
-      <div className="h-24 bg-gray-100 rounded-2xl" />
-      <div className="grid grid-cols-3 gap-4">{[...Array(6)].map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-2xl" />)}</div>
-      <div className="grid grid-cols-2 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-gray-100 rounded-2xl" />)}</div>
+      <div className="h-28 bg-gray-100 rounded-2xl" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">{[...Array(6)].map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-2xl" />)}</div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-48 bg-gray-100 rounded-2xl" />)}</div>
+      <div className="h-64 bg-gray-100 rounded-2xl" />
     </div>
   );
 
   if (!data || !stats) return (
     <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-      <AlertTriangle className="h-12 w-12 text-red-400" />
-      <p className="text-gray-600 font-medium">Erreur de chargement</p>
-      <p className="text-gray-400 text-sm">{error || 'Impossible de charger les données du dashboard.'}</p>
+      <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
+        <AlertTriangle className="h-8 w-8 text-red-400" />
+      </div>
+      <div className="text-center">
+        <p className="text-gray-700 font-semibold text-lg">Impossible de charger le dashboard</p>
+        <p className="text-gray-400 text-sm mt-1">{error || 'Vérifiez que vous êtes bien connecté en tant qu\'agent.'}</p>
+      </div>
       <button
         onClick={loadData}
-        className="flex items-center gap-2 text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+        className="flex items-center gap-2 text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors font-medium"
       >
         <RefreshCw className="h-4 w-4" /> Réessayer
       </button>
@@ -191,6 +199,9 @@ export default function DashboardPage() {
             <p className="text-blue-200 text-sm mt-1">Suivi en temps réel — réfugiés, déplacés internes, camps & réunification familiale</p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
+            <button onClick={loadData} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-2 rounded-xl text-sm transition-colors">
+              <RefreshCw className="h-4 w-4" /> Actualiser
+            </button>
             <Link href="/map" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-2 rounded-xl text-sm transition-colors">
               <Map className="h-4 w-4" /> Carte
             </Link>
@@ -214,6 +225,15 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Bannière erreur si données partielles */}
+      {error && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+          <button onClick={loadData} className="ml-auto text-amber-700 underline hover:no-underline">Réessayer</button>
+        </div>
+      )}
+
       {/* KPIs humanitaires */}
       <div>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Base de données humanitaire</h2>
@@ -222,7 +242,7 @@ export default function DashboardPage() {
           <StatCard label="Réfugiés" value={stats.refugee} color="text-blue-600" bg="bg-blue-50" border="border-blue-200" icon={<Globe className="h-5 w-5" />} href="/refugees" />
           <StatCard label="Déplacés internes" value={stats.displaced} color="text-orange-600" bg="bg-orange-50" border="border-orange-200" icon={<MapPin className="h-5 w-5" />} href="/displaced" />
           <StatCard label="Camps actifs" value={stats.camps} color="text-indigo-600" bg="bg-indigo-50" border="border-indigo-200" icon={<Tent className="h-5 w-5" />} href="/camps" />
-          <StatCard label="Réunifications ✓" value={stats.reunified} color="text-emerald-600" bg="bg-emerald-50" border="border-emerald-200" icon={<Heart className="h-5 w-5" />} href="/family-matches" />
+          <StatCard label="Réunifications ✓" value={stats.reunified} color="text-emerald-600" bg="bg-emerald-50" border="border-emerald-200" icon={<Heart className="h-5 w-5" />} href="/family-matches" trend={stats.reunified > 0 ? `+${stats.reunified}` : undefined} />
           <StatCard label="Réunif. en cours" value={stats.reunificationInProgress} color="text-yellow-600" bg="bg-yellow-50" border="border-yellow-200" icon={<Clock className="h-5 w-5" />} href="/family-matches" />
         </div>
       </div>
@@ -240,7 +260,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-end gap-2 mb-3">
             <span className="text-5xl font-bold text-emerald-600">{reunifRate}%</span>
-            <span className="text-sm text-gray-400 mb-1.5">des dossiers actifs</span>
+            <span className="text-sm text-gray-400 mb-1.5">{totalHumanitarian === 0 ? 'aucun dossier' : 'des dossiers actifs'}</span>
           </div>
           <ProgressBar value={stats.reunified} max={totalHumanitarian} color="bg-emerald-500" />
           <div className="flex justify-between text-xs text-gray-400 mt-1.5">
@@ -283,9 +303,13 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between text-sm">
+          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-sm">
             <span className="text-gray-500">Taux de succès</span>
-            <span className="font-bold text-green-600">{data.successRate}%</span>
+            <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${
+              data.successRate >= 70 ? 'bg-green-100 text-green-700' :
+              data.successRate >= 40 ? 'bg-yellow-100 text-yellow-700' :
+              'bg-gray-100 text-gray-500'
+            }`}>{data.successRate}%</span>
           </div>
         </div>
 
@@ -320,10 +344,14 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-3 border-t border-gray-100">
+          <div className="mt-4 pt-3 border-t border-gray-100 space-y-1.5">
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-500">Total correspondances</span>
               <span className="font-bold text-gray-700">{data.totalMatches}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-500">Membres famille enregistrés</span>
+              <span className="font-bold text-gray-700">{data.totalFamilyMembers}</span>
             </div>
           </div>
         </div>
@@ -334,15 +362,18 @@ export default function DashboardPage() {
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Accès rapides</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { href: '/refugees/create', label: 'Nouveau réfugié', icon: <Globe className="h-5 w-5" />, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-            { href: '/create', label: 'Nouveau déplacé', icon: <MapPin className="h-5 w-5" />, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-            { href: '/family-matches', label: 'Gérer correspondances', icon: <Zap className="h-5 w-5" />, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
-            { href: '/ai-matching', label: 'ElikIA — Analyse IA', icon: <Brain className="h-5 w-5" />, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200' },
+            { href: '/refugees/create', label: 'Nouveau réfugié', icon: <Globe className="h-5 w-5" />, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', count: stats.refugee },
+            { href: '/create', label: 'Nouveau déplacé', icon: <MapPin className="h-5 w-5" />, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', count: stats.displaced },
+            { href: '/family-matches', label: 'Gérer correspondances', icon: <Zap className="h-5 w-5" />, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', count: data.pendingMatches },
+            { href: '/ai-matching', label: 'ElikIA — Analyse IA', icon: <Brain className="h-5 w-5" />, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', count: null },
           ].map(a => (
             <Link key={a.href} href={a.href} className={`${a.bg} border ${a.border} rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition-all group`}>
-              <div className={`${a.color} group-hover:scale-110 transition-transform`}>{a.icon}</div>
-              <span className={`text-sm font-medium ${a.color}`}>{a.label}</span>
-              <ArrowRight className={`h-3.5 w-3.5 ml-auto ${a.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
+              <div className={`${a.color} group-hover:scale-110 transition-transform shrink-0`}>{a.icon}</div>
+              <div className="min-w-0">
+                <span className={`text-sm font-medium ${a.color} block`}>{a.label}</span>
+                {a.count !== null && <span className="text-xs text-gray-400">{a.count} enregistrés</span>}
+              </div>
+              <ArrowRight className={`h-3.5 w-3.5 ml-auto ${a.color} opacity-0 group-hover:opacity-100 transition-opacity shrink-0`} />
             </Link>
           ))}
         </div>
