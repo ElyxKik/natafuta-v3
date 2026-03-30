@@ -5,6 +5,6 @@ CREATE TABLE "MissingPersonPhoto" (
     "fileName" TEXT NOT NULL,
     "fileSize" INTEGER NOT NULL,
     "mimeType" TEXT NOT NULL,
-    "uploadedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "uploadedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "MissingPersonPhoto_missingPersonId_fkey" FOREIGN KEY ("missingPersonId") REFERENCES "MissingPerson" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );

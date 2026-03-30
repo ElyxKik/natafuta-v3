@@ -3,7 +3,7 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT,
     "email" TEXT,
-    "emailVerified" DATETIME,
+    "emailVerified" TIMESTAMP,
     "password" TEXT,
     "image" TEXT,
     "userType" TEXT NOT NULL DEFAULT 'visitor',
@@ -13,8 +13,8 @@ CREATE TABLE "User" (
     "badgeNumber" TEXT,
     "bio" TEXT,
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL
 );
 
 -- CreateTable
@@ -39,7 +39,7 @@ CREATE TABLE "Session" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "sessionToken" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "expires" DATETIME NOT NULL,
+    "expires" TIMESTAMP NOT NULL,
     CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -47,7 +47,7 @@ CREATE TABLE "Session" (
 CREATE TABLE "VerificationToken" (
     "identifier" TEXT NOT NULL,
     "token" TEXT NOT NULL,
-    "expires" DATETIME NOT NULL
+    "expires" TIMESTAMP NOT NULL
 );
 
 -- CreateTable
@@ -56,8 +56,8 @@ CREATE TABLE "MissingPerson" (
     "title" TEXT NOT NULL,
     "fullName" TEXT NOT NULL,
     "age" INTEGER,
-    "dateOfBirth" DATETIME,
-    "dateMissing" DATETIME NOT NULL,
+    "dateOfBirth" TIMESTAMP,
+    "dateMissing" TIMESTAMP NOT NULL,
     "lastKnownLocation" TEXT,
     "description" TEXT NOT NULL,
     "physicalDescription" TEXT,
@@ -68,8 +68,8 @@ CREATE TABLE "MissingPerson" (
     "imageUrl" TEXT,
     "status" TEXT NOT NULL DEFAULT 'active',
     "createdById" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "MissingPerson_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -82,9 +82,9 @@ CREATE TABLE "Sighting" (
     "contactInfo" TEXT,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "submittedById" TEXT,
-    "submittedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "submittedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "reviewedById" TEXT,
-    "reviewedAt" DATETIME,
+    "reviewedAt" TIMESTAMP,
     CONSTRAINT "Sighting_missingPersonId_fkey" FOREIGN KEY ("missingPersonId") REFERENCES "MissingPerson" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Sighting_submittedById_fkey" FOREIGN KEY ("submittedById") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Sighting_reviewedById_fkey" FOREIGN KEY ("reviewedById") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -98,9 +98,9 @@ CREATE TABLE "FamilyMember" (
     "relationship" TEXT NOT NULL,
     "fullName" TEXT NOT NULL,
     "age" INTEGER,
-    "dateOfBirth" DATETIME,
+    "dateOfBirth" TIMESTAMP,
     "contactInfo" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "FamilyMember_searcherId_fkey" FOREIGN KEY ("searcherId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "FamilyMember_missingPersonId_fkey" FOREIGN KEY ("missingPersonId") REFERENCES "MissingPerson" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -118,9 +118,9 @@ CREATE TABLE "FamilyMatch" (
     "locationSimilarity" REAL NOT NULL DEFAULT 0,
     "notes" TEXT,
     "verifiedById" TEXT,
-    "verifiedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "verifiedAt" TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "FamilyMatch_missingPersonId_fkey" FOREIGN KEY ("missingPersonId") REFERENCES "MissingPerson" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "FamilyMatch_familyMemberId_fkey" FOREIGN KEY ("familyMemberId") REFERENCES "FamilyMember" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "FamilyMatch_verifiedById_fkey" FOREIGN KEY ("verifiedById") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE

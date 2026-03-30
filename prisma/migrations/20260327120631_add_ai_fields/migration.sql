@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "FamilyMatch" ADD COLUMN "aiAnalyzedAt" DATETIME;
+ALTER TABLE "FamilyMatch" ADD COLUMN "aiAnalyzedAt" TIMESTAMP;
 ALTER TABLE "FamilyMatch" ADD COLUMN "aiConfidenceScore" REAL;
 ALTER TABLE "FamilyMatch" ADD COLUMN "aiFactors" TEXT;
 ALTER TABLE "FamilyMatch" ADD COLUMN "aiSummary" TEXT;
