@@ -8,18 +8,22 @@ import { signOut } from 'next-auth/react';
 import {
   Home, Search, PlusCircle, Zap, BarChart2,
   User, LogOut, Brain, ChevronLeft, ChevronRight, Menu, X,
-  TrendingUp, Users, Shield
+  TrendingUp, Users, Shield, Globe, MapPin, Tent, Map
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { section: 'Principal', items: [
     { href: '/', label: 'Accueil', icon: Home },
-    { href: '/missing', label: 'Recherche', icon: Search },
+    { href: '/missing', label: 'Personnes disparues', icon: Search },
+    { href: '/refugees', label: 'Réfugiés', icon: Globe },
+    { href: '/displaced', label: 'Déplacés internes', icon: MapPin },
+    { href: '/camps', label: 'Camps', icon: Tent },
     { href: '/my-searches', label: 'Mes recherches', icon: Users },
   ]},
   { section: 'Outils Agent', items: [
-    { href: '/missing/create', label: 'Créer une fiche', icon: PlusCircle },
+    { href: '/create', label: 'Nouvelle fiche', icon: PlusCircle },
     { href: '/family-matches', label: 'Correspondances', icon: Zap },
+    { href: '/map', label: 'Carte humanitaire', icon: Map },
     { href: '/dashboard', label: 'Dashboard', icon: BarChart2 },
     { href: '/matching-statistics', label: 'Statistiques', icon: TrendingUp },
     { href: '/ai-matching', label: 'ElikIA', icon: Brain, highlight: true },

@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') ?? '1');
     const pageSize = 12;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { personType: 'missing' };
     if (status) where.status = status;
     if (urgencyLevel) where.urgencyLevel = urgencyLevel;
     if (search) {
@@ -52,9 +52,14 @@ export async function POST(req: Request) {
   const person = await prisma.missingPerson.create({
     data: {
       ...data,
+      personType: 'missing',
       createdById: (session.user as any).id,
       dateMissing: new Date(data.dateMissing),
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+      arrivalDate: undefined,
+      dossierNumber: undefined,
+      reunificationStatus: undefined,
+      campId: undefined,
     },
   });
   return NextResponse.json(person, { status: 201 });

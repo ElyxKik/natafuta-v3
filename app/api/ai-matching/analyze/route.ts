@@ -13,22 +13,69 @@ interface AnalysisResult {
   recommendation: string;
 }
 
-const SYSTEM_PROMPT = `Tu es ElikIA, un agent IA spécialisé dans la recherche de personnes disparues et la réunification familiale en Afrique centrale (RDC, Congo).
-Tu as été conçu pour aider les agents humains à identifier des liens entre personnes disparues et membres de famille qui les recherchent.
+// Validation logique d'âge pour éviter les incohérences biologiques
+function validateAgeCoherence(
+  missingPersonAge: number | null | undefined,
+  familyMemberAge: number | null | undefined,
+  relationship: string
+): { isValid: boolean; issue?: string } {
+  if (!missingPersonAge || !familyMemberAge) return { isValid: true }; // Pas assez d'info
 
-Tu analyses chaque correspondance avec rigueur et empathie, en tenant compte de :
-- Similarité des noms (patronymes, prénoms, noms d'ethnie, diminutifs courants en Lingala, Swahili, Kikongo, Tshiluba)
-- Proximité d'âge (avec tolérance pour les erreurs déclaratives fréquentes en zone rurale ou contexte de conflit)
+  const ageDiff = familyMemberAge - missingPersonAge;
+
+  // Règles biologiques strictes
+  if (relationship === 'parent' || relationship === 'père' || relationship === 'mère') {
+    // Un parent doit être au minimum 15-16 ans plus âgé que son enfant
+    if (ageDiff < 15) {
+      return { isValid: false, issue: `Parent trop jeune : ${familyMemberAge} ans vs enfant ${missingPersonAge} ans (écart ${ageDiff} ans, minimum 15 requis)` };
+    }
+  }
+
+  if (relationship === 'child' || relationship === 'enfant' || relationship === 'fils' || relationship === 'fille') {
+    // Un enfant doit être au minimum 15-16 ans plus jeune que son parent
+    if (ageDiff > -15) {
+      return { isValid: false, issue: `Enfant trop âgé : ${missingPersonAge} ans vs parent ${familyMemberAge} ans (écart ${-ageDiff} ans, minimum 15 requis)` };
+    }
+  }
+
+  if (relationship === 'sibling' || relationship === 'frère' || relationship === 'sœur') {
+    // Des frères/sœurs ne doivent pas avoir plus de 50 ans d'écart (cas extrême)
+    if (Math.abs(ageDiff) > 50) {
+      return { isValid: false, issue: `Écart d'âge anormal pour des frères/sœurs : ${Math.abs(ageDiff)} ans` };
+    }
+  }
+
+  if (relationship === 'grandparent' || relationship === 'grand-parent') {
+    // Un grand-parent doit être au minimum 30 ans plus âgé
+    if (ageDiff < 30) {
+      return { isValid: false, issue: `Grand-parent trop jeune : ${familyMemberAge} ans vs petit-enfant ${missingPersonAge} ans (écart ${ageDiff} ans, minimum 30 requis)` };
+    }
+  }
+
+  return { isValid: true };
+}
+
+const SYSTEM_PROMPT = `Tu es ElikIA, un agent IA humanitaire spécialisé dans la réunification familiale en Afrique centrale (RDC, Congo).
+Tu opères dans le contexte des déplacements forcés : réfugiés fuyant leur pays et déplacés internes (PDI) fuyant les conflits à l'intérieur de la RDC.
+Ta mission est d'aider les agents à identifier des liens familiaux entre des personnes enregistrées dans des camps ou sites de déplacement et les membres de famille qui les recherchent.
+
+Tu analyses chaque correspondance avec rigueur et empathie humanitaire, en tenant compte de :
+- TYPE DE PERSONNE : réfugié (venant d'un autre pays) ou déplacé interne (PDI, fuyant à l'intérieur de la RDC) — le contexte change l'analyse
+- Similarité des noms (patronymes, prénoms, noms ethniques, diminutifs en Lingala, Swahili, Kikongo, Tshiluba, Kinyarwanda, Kirundi)
+- Proximité d'âge (tolérance élevée : les déclarations en contexte de crise sont souvent approximatives)
 - Cohérence du sexe déclaré
-- Appartenance ethnique commune ou liée (ethnie, tribu, clan)
-- Langues parlées compatibles avec l'origine géographique ou ethnique
-- Localisation géographique : cohérence entre lieu d'origine, dernier lieu connu et localisation du chercheur
-- Description physique comparée entre la fiche officielle et la description du chercheur
+- Appartenance ethnique commune (ethnie, tribu, clan — indice fort en contexte de déplacement groupé)
+- Langues parlées compatibles avec le pays ou la province d'origine
+- Localisation géographique : cohérence entre lieu d'origine, camp d'accueil et localisation du chercheur
+- Numéro de dossier officiel : si disponible, c'est un indicateur clé
+- Date d'arrivée au camp : cohérence avec la période de fuite de la famille
+- Description physique croisée
 - Conditions médicales similaires ou héréditaires
-- Circonstances de la disparition (conflit, déplacement, fugue, enlèvement)
-- Noms du père et de la mère : indices de filiation directe
+- Noms du père et de la mère : filiation directe
 - Cohérence du lien de parenté déclaré avec les âges respectifs
-- Contexte de déplacement de population en RDC (conflits Est, axes migratoires)
+- Contexte de déplacement : conflits Est-RDC, axes migratoires, crises spécifiques (Kasai, Ituri, Nord-Kivu, Sud-Kivu)
+- Statut de réunification actuel : s'il est déjà "in_progress" ou "reunified", cela affecte la recommandation
+- COHÉRENCE BIOLOGIQUE D'ÂGE : CRITIQUE — un parent doit être au minimum 15 ans plus âgé que son enfant, un grand-parent 30 ans plus âgé. Si tu détectes une incohérence d'âge, c'est un facteur NÉGATIF majeur qui doit réduire drastiquement la confiance.
 
 Réponds UNIQUEMENT en JSON valide avec ce format exact :
 \`\`\`json
@@ -38,7 +85,7 @@ Réponds UNIQUEMENT en JSON valide avec ce format exact :
     { "type": "positive" | "negative" | "neutral", "label": "<critère>", "detail": "<explication>" }
   ],
   "summary": "<résumé en 2-3 phrases>",
-  "recommendation": "<action recommandée pour l'agent>"
+  "recommendation": "<action concrète recommandée pour l'agent humanitaire>"
 }
 \`\`\``;
 
@@ -62,23 +109,33 @@ export async function POST(req: Request) {
   });
   if (!match) return NextResponse.json({ error: 'Correspondance introuvable.' }, { status: 404 });
 
-  const mp = match.missingPerson;
-  const fm = match.familyMember;
+  const mp = match.missingPerson as any;
+  const fm = match.familyMember as any;
 
-  const userPrompt = `Analyse la correspondance potentielle suivante :
+  const personTypeLabel = mp.personType === 'refugee' ? 'RÉFUGIÉ' : mp.personType === 'displaced' ? 'DÉPLACÉ INTERNE (PDI)' : 'PERSONNE DISPARUE';
+  const reunifLabel: Record<string, string> = { pending: 'En attente', in_progress: 'En cours', reunified: 'Réunifié', closed: 'Fermé' };
 
-## PERSONNE DISPARUE
+  // Vérifier la cohérence d'âge
+  const ageValidation = validateAgeCoherence(mp.age, fm.age, fm.relationship);
+  const ageWarning = !ageValidation.isValid ? `\n⚠️ ALERTE INCOHÉRENCE D'ÂGE : ${ageValidation.issue}` : '';
+
+  const userPrompt = `Analyse la correspondance potentielle suivante pour une demande de réunification familiale :${ageWarning}
+
+## PERSONNE ENREGISTRÉE — ${personTypeLabel}
 - Nom complet : ${mp.fullName}
 - Âge : ${mp.age ?? 'Inconnu'}
-- Sexe : ${(mp as any).gender === 'male' ? 'Masculin' : (mp as any).gender === 'female' ? 'Féminin' : 'Non précisé'}
-- Date de disparition : ${new Date(mp.dateMissing).toLocaleDateString('fr-FR')}
-- Dernier lieu connu : ${mp.lastKnownLocation ?? 'Inconnu'}
-- Lieu d'origine / Province : ${(mp as any).originLocation ?? 'Non renseigné'}
-- Ethnie / Tribu : ${(mp as any).ethnicity ?? 'Non renseignée'}
-- Langues parlées : ${(mp as any).languages ?? 'Non renseignées'}
-- Nom du père : ${(mp as any).fatherName ?? 'Non renseigné'}
-- Nom de la mère : ${(mp as any).motherName ?? 'Non renseignée'}
-- Circonstances de la disparition : ${(mp as any).circumstances ?? 'Non renseignées'}
+- Sexe : ${mp.gender === 'male' ? 'Masculin' : mp.gender === 'female' ? 'Féminin' : 'Non précisé'}
+- Ethnie / Tribu : ${mp.ethnicity ?? 'Non renseignée'}
+- Langues parlées : ${mp.languages ?? 'Non renseignées'}
+- Lieu d'origine / Province : ${mp.originLocation ?? 'Non renseigné'}
+- Dernier lieu connu / Site de déplacement : ${mp.lastKnownLocation ?? 'Inconnu'}
+- Camp actuel : ${mp.camp?.name ?? 'Non assigné'}${mp.camp?.location ? ` (${mp.camp.location})` : ''}
+- Numéro de dossier : ${mp.dossierNumber ?? 'Aucun'}
+- Date d'arrivée au camp / de déplacement : ${mp.arrivalDate ? new Date(mp.arrivalDate).toLocaleDateString('fr-FR') : 'Non renseignée'}
+- Statut réunification actuel : ${reunifLabel[mp.reunificationStatus] ?? mp.reunificationStatus ?? 'Non défini'}
+- Nom du père : ${mp.fatherName ?? 'Non renseigné'}
+- Nom de la mère : ${mp.motherName ?? 'Non renseignée'}
+- Circonstances du déplacement : ${mp.circumstances ?? 'Non renseignées'}
 - Description générale : ${mp.description}
 - Description physique : ${mp.physicalDescription ?? 'Non renseignée'}
 - Conditions médicales : ${mp.medicalConditions ?? 'Aucune'}
@@ -88,10 +145,10 @@ export async function POST(req: Request) {
 - Nom complet : ${fm.fullName}
 - Lien de parenté déclaré : ${fm.relationship}
 - Âge : ${fm.age ?? 'Inconnu'}
-- Localisation du chercheur : ${(fm as any).location ?? 'Non renseignée'}
-- Description physique du disparu selon le chercheur : ${(fm as any).physicalDescription ?? 'Non renseignée'}
+- Localisation du chercheur : ${fm.location ?? 'Non renseignée'}
+- Description physique de la personne selon le chercheur : ${fm.physicalDescription ?? 'Non renseignée'}
 - Informations de contact : ${fm.contactInfo ?? 'Non renseigné'}
-- Recherché par : ${fm.searcher.name ?? fm.searcher.email}
+- Enregistré par : ${fm.searcher?.name ?? fm.searcher?.email ?? 'Inconnu'}
 
 ## SCORES ALGORITHMIQUES ACTUELS
 - Similarité de nom : ${Math.round(match.nameSimilarity)}%
@@ -99,7 +156,7 @@ export async function POST(req: Request) {
 - Similarité de localisation : ${Math.round(match.locationSimilarity)}%
 - Score global algorithmique : ${Math.round(match.confidenceScore)}%
 
-Analyse ces deux profils en profondeur. Accorde une importance particulière aux nouveaux champs (ethnie, langues, noms des parents, circonstances, description physique croisée) pour affiner la confiance.`;
+Contexte humanitaire : cette personne est un(e) ${personTypeLabel.toLowerCase()} en RDC. Tiens compte du contexte de déplacement forcé, des barrières linguistiques possibles dans les déclarations, et de l'urgence humanitaire. Analyse en profondeur et fournis une recommandation concrète à l'agent humanitaire.`;
 
   try {
     const response = await deepseekChat([

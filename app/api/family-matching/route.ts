@@ -48,32 +48,37 @@ function determineMatchType(nameSim: number, ageSim: number, locSim: number): st
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).userType !== 'agent') {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || (session.user as any).userType !== 'agent') {
+      return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
+    }
+    const [total, totalFamily, totalMatches, pendingMatches, verifiedMatches, confirmedMatches, rejectedMatches, recentMatches, highConfidence, mediumConfidence, lowConfidence] =
+      await Promise.all([
+        prisma.missingPerson.count(),
+        prisma.familyMember.count(),
+        prisma.familyMatch.count(),
+        prisma.familyMatch.count({ where: { status: 'pending' } }),
+        prisma.familyMatch.count({ where: { status: 'verified' } }),
+        prisma.familyMatch.count({ where: { status: 'confirmed' } }),
+        prisma.familyMatch.count({ where: { status: 'rejected' } }),
+        (prisma as any).familyMatch.findMany({
+          orderBy: { createdAt: 'desc' }, take: 10,
+          include: {
+            missingPerson: { select: { id: true, fullName: true, personType: true } },
+            familyMember: { select: { id: true, fullName: true } },
+          },
+        }),
+        prisma.familyMatch.count({ where: { confidenceScore: { gte: 80 } } }),
+        prisma.familyMatch.count({ where: { confidenceScore: { gte: 60, lt: 80 } } }),
+        prisma.familyMatch.count({ where: { confidenceScore: { lt: 60 } } }),
+      ]);
+    const successRate = totalMatches > 0 ? Math.round((confirmedMatches / totalMatches) * 100) : 0;
+    return NextResponse.json({ totalMissingPersons: total, totalFamilyMembers: totalFamily, totalMatches, pendingMatches, verifiedMatches, confirmedMatches, rejectedMatches, recentMatches, highConfidence, mediumConfidence, lowConfidence, successRate });
+  } catch (error: any) {
+    console.error('GET /api/family-matching error:', error);
     return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
   }
-  const [total, totalFamily, totalMatches, pendingMatches, verifiedMatches, confirmedMatches, rejectedMatches, recentMatches, highConfidence, mediumConfidence, lowConfidence] =
-    await Promise.all([
-      prisma.missingPerson.count(),
-      prisma.familyMember.count(),
-      prisma.familyMatch.count(),
-      prisma.familyMatch.count({ where: { status: 'pending' } }),
-      prisma.familyMatch.count({ where: { status: 'verified' } }),
-      prisma.familyMatch.count({ where: { status: 'confirmed' } }),
-      prisma.familyMatch.count({ where: { status: 'rejected' } }),
-      prisma.familyMatch.findMany({
-        orderBy: { createdAt: 'desc' }, take: 10,
-        include: {
-          missingPerson: { select: { id: true, fullName: true } },
-          familyMember: { select: { id: true, fullName: true } },
-        },
-      }),
-      prisma.familyMatch.count({ where: { confidenceScore: { gte: 80 } } }),
-      prisma.familyMatch.count({ where: { confidenceScore: { gte: 60, lt: 80 } } }),
-      prisma.familyMatch.count({ where: { confidenceScore: { lt: 60 } } }),
-    ]);
-  const successRate = totalMatches > 0 ? Math.round((confirmedMatches / totalMatches) * 100) : 0;
-  return NextResponse.json({ totalMissingPersons: total, totalFamilyMembers: totalFamily, totalMatches, pendingMatches, verifiedMatches, confirmedMatches, rejectedMatches, recentMatches, highConfidence, mediumConfidence, lowConfidence, successRate });
 }
 
 export async function POST(req: Request) {

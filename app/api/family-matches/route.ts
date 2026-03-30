@@ -12,11 +12,18 @@ export async function GET(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') ?? 'pending';
-  const matches = await prisma.familyMatch.findMany({
+  const matches = await (prisma as any).familyMatch.findMany({
     where: { status },
     orderBy: { confidenceScore: 'desc' },
     include: {
-      missingPerson: { select: { id: true, fullName: true, lastKnownLocation: true, urgencyLevel: true, aiCrossLinks: true } },
+      missingPerson: {
+        select: {
+          id: true, fullName: true, lastKnownLocation: true, urgencyLevel: true,
+          aiCrossLinks: true, personType: true,
+          dossierNumber: true, reunificationStatus: true, originLocation: true,
+          camp: { select: { name: true, location: true } },
+        },
+      },
       familyMember: { select: { id: true, fullName: true, relationship: true } },
     },
   });

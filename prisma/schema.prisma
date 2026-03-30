@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -35,6 +36,7 @@ model User {
   reviewedSightings Sighting[] @relation("ReviewedBy")
   familySearches FamilyMember[] @relation("Searcher")
   verifiedMatches FamilyMatch[] @relation("VerifiedBy")
+  createdCamps  Camp[]          @relation("CampCreatedBy")
 }
 
 model Account {
@@ -74,6 +76,7 @@ model VerificationToken {
 
 model MissingPerson {
   id                    String   @id @default(cuid())
+  personType            String   @default("missing") // missing | refugee | displaced
   title                 String
   fullName              String
   age                   Int?
@@ -100,7 +103,14 @@ model MissingPerson {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
+  // Champs spécifiques réfugié / déplacé
+  arrivalDate           DateTime? // date d'arrivée au camp ou en zone de déplacement
+  dossierNumber         String?   // numéro de dossier officiel
+  reunificationStatus   String?   @default("pending") // pending, in_progress, reunified, closed
+  campId                String?   // camp d'affectation actuel
+
   createdBy             User     @relation("CreatedBy", fields: [createdById], references: [id])
+  camp                  Camp?    @relation("PersonCamp", fields: [campId], references: [id])
   sightings             Sighting[]
   familyMembersSearching FamilyMember[]
   familyMatches         FamilyMatch[]
@@ -179,4 +189,26 @@ model FamilyMatch {
   verifiedBy        User?    @relation("VerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
 
   @@unique([missingPersonId, familyMemberId])
+}
+
+model Camp {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // refugee | displaced
+  location          String
+  province          String?
+  capacity          Int?
+  currentOccupancy  Int?     @default(0)
+  status            String   @default("active") // active, closed, full
+  latitude          Float?
+  longitude         Float?
+  contactPerson     String?
+  contactPhone      String?
+  description       String?
+  createdById       String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  createdBy         User     @relation("CampCreatedBy", fields: [createdById], references: [id])
+  persons           MissingPerson[] @relation("PersonCamp")
 }

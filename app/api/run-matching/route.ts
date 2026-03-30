@@ -50,11 +50,12 @@ export async function POST() {
     return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
   }
 
-  const familyMembers = await prisma.familyMember.findMany({
+  const familyMembers = await (prisma as any).familyMember.findMany({
     include: { missingPerson: true },
+    where: { missingPerson: { personType: { in: ['refugee', 'displaced'] } } },
   });
-  const activeMissing = await prisma.missingPerson.findMany({
-    where: { status: 'active' },
+  const activeMissing = await (prisma as any).missingPerson.findMany({
+    where: { status: 'active', personType: { in: ['refugee', 'displaced'] } },
   });
 
   let created = 0;

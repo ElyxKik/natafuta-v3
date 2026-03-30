@@ -20,17 +20,57 @@ interface PredictResult {
   commonFactors: string[];
 }
 
-const SYSTEM_PROMPT = `Tu es ElikIA, un agent IA spécialisé dans la recherche de personnes disparues et la réunification familiale en Afrique centrale (RDC, Congo).
-Ton expertise unique est de détecter des liens CACHÉS entre plusieurs personnes disparues qui pourraient appartenir au même groupe familial ou avoir disparu dans des circonstances liées.
+// Validation logique d'âge pour éviter les incohérences biologiques
+function validateAgeCoherence(
+  age1: number | null | undefined,
+  age2: number | null | undefined,
+  relationship: string
+): { isValid: boolean; issue?: string } {
+  if (!age1 || !age2) return { isValid: true };
+
+  const ageDiff = Math.abs(age1 - age2);
+
+  if (relationship.includes('parent') || relationship.includes('père') || relationship.includes('mère')) {
+    if (ageDiff < 15) {
+      return { isValid: false, issue: `Parent trop jeune (écart ${ageDiff} ans, minimum 15)` };
+    }
+  }
+
+  if (relationship.includes('sibling') || relationship.includes('frère') || relationship.includes('sœur')) {
+    if (ageDiff > 50) {
+      return { isValid: false, issue: `Écart d'âge anormal pour fratrie (${ageDiff} ans)` };
+    }
+  }
+
+  if (relationship.includes('grandparent') || relationship.includes('grand-parent')) {
+    if (ageDiff < 30) {
+      return { isValid: false, issue: `Grand-parent trop jeune (écart ${ageDiff} ans, minimum 30)` };
+    }
+  }
+
+  return { isValid: true };
+}
+
+const SYSTEM_PROMPT = `Tu es ElikIA, un agent IA humanitaire spécialisé dans la réunification familiale des réfugiés et déplacés internes (PDI) en Afrique centrale (RDC, Congo).
+Ton expertise unique est de détecter des liens CACHÉS entre des personnes enregistrées dans des camps ou sites de déplacement qui pourraient appartenir au même groupe familial ou avoir été séparées lors du même événement.
+
+Contexte spécifique RDC :
+- Les familles sont souvent séparées brutalement lors de conflits armés, puis enregistrées dans des camps différents
+- Les noms peuvent être orthographiés différemment selon la langue du recensement (Swahili, Lingala, Kinyarwanda, Kirundi, Tshiluba, Kikongo)
+- Les âges déclarés sont souvent approximatifs, surtout pour les enfants
+- Les personnes du même village ou clan fuient souvent ensemble — l'ethnie et le lieu d'origine sont des indices forts
+- Un même numéro de dossier ou une même date d'arrivée peut indiquer une arrivée groupée
+
 Cherche des patterns comme :
-- Même famille (noms de famille similaires, diminutifs, noms ethniques — Lingala, Swahili, Kikongo, Tshiluba ; noms du père ou de la mère identiques)
-- Même ethnie, tribu ou clan
-- Langues parlées identiques ou proches
-- Même sexe + tranche d'âge compatible avec un lien de fratrie ou parent/enfant
-- Même zone géographique : lieu d'origine, dernier lieu connu, ou axe de déplacement similaire
-- Circonstances similaires (même période, même type — conflit, déplacement, fugue, enlèvement)
+- Même famille (noms de famille similaires, noms du père ou de la mère identiques ou proches)
+- Même ethnie, tribu ou clan + même région d'origine
+- Langues parlées identiques ou du même groupe linguistique
+- Tranche d'âge compatible avec un lien parent/enfant ou fratrie
+- Même camp ou camps proches + période d'arrivée similaire
+- Circonstances similaires (même type de conflit, même axe de fuite)
 - Conditions médicales héréditaires similaires
-- Descriptions physiques compatibles avec un lien familial biologique
+- Descriptions physiques compatibles avec un lien biologique
+- COHÉRENCE BIOLOGIQUE D'ÂGE : CRITIQUE — un parent doit être au minimum 15 ans plus âgé que son enfant. Si tu détectes une incohérence d'âge, réduis drastiquement la confiance ou rejette le lien.
 
 Réponds UNIQUEMENT en JSON valide :
 \`\`\`json
@@ -59,58 +99,68 @@ export async function POST(req: Request) {
   const { missingPersonId } = await req.json();
   if (!missingPersonId) return NextResponse.json({ error: 'missingPersonId requis.' }, { status: 400 });
 
-  const target = await prisma.missingPerson.findUnique({ where: { id: missingPersonId } });
+  const target = await (prisma as any).missingPerson.findUnique({
+    where: { id: missingPersonId },
+    include: { camp: { select: { name: true, location: true, province: true } } },
+  });
   if (!target) return NextResponse.json({ error: 'Personne introuvable.' }, { status: 404 });
+  if (target.personType !== 'refugee' && target.personType !== 'displaced') {
+    return NextResponse.json({ error: 'La détection de liens croisés est réservée aux réfugiés et déplacés internes.' }, { status: 400 });
+  }
 
-  const others = await prisma.missingPerson.findMany({
-    where: { id: { not: missingPersonId }, status: 'active' },
+  const others = await (prisma as any).missingPerson.findMany({
+    where: { id: { not: missingPersonId }, status: 'active', personType: { in: ['refugee', 'displaced'] } },
+    include: { camp: { select: { name: true, location: true, province: true } } },
     orderBy: { createdAt: 'desc' },
-    take: 20,
+    take: 30,
   });
 
+  const typeLabel = target.personType === 'refugee' ? 'réfugié' : 'déplacé interne';
   if (others.length === 0) {
-    return NextResponse.json({ crossLinks: [], groupSummary: 'Aucune autre personne disparue à comparer.', commonFactors: [] });
+    return NextResponse.json({ crossLinks: [], groupSummary: `Aucun autre ${typeLabel} actif à comparer.`, commonFactors: [] });
   }
 
   const targetInfo = `
-PERSONNE CIBLE :
+PERSONNE CIBLE (${typeLabel.toUpperCase()}) :
 - ID : ${target.id}
+- Type : ${typeLabel}
 - Nom : ${target.fullName}
 - Âge : ${target.age ?? 'Inconnu'}
-- Sexe : ${(target as any).gender === 'male' ? 'Masculin' : (target as any).gender === 'female' ? 'Féminin' : 'Non précisé'}
-- Ethnie / Tribu : ${(target as any).ethnicity ?? 'Non renseignée'}
-- Langues parlées : ${(target as any).languages ?? 'Non renseignées'}
-- Nom du père : ${(target as any).fatherName ?? 'Non renseigné'}
-- Nom de la mère : ${(target as any).motherName ?? 'Non renseignée'}
-- Lieu d'origine : ${(target as any).originLocation ?? 'Non renseigné'}
-- Dernier lieu connu : ${target.lastKnownLocation ?? 'Inconnu'}
-- Circonstances : ${(target as any).circumstances ?? 'Non renseignées'}
+- Sexe : ${target.gender === 'male' ? 'Masculin' : target.gender === 'female' ? 'Féminin' : 'Non précisé'}
+- Ethnie / Tribu : ${target.ethnicity ?? 'Non renseignée'}
+- Langues parlées : ${target.languages ?? 'Non renseignées'}
+- Nom du père : ${target.fatherName ?? 'Non renseigné'}
+- Nom de la mère : ${target.motherName ?? 'Non renseignée'}
+- Lieu d'origine / Province : ${target.originLocation ?? 'Non renseigné'}
+- Camp actuel : ${target.camp?.name ?? 'Non assigné'}${target.camp?.location ? ` (${target.camp.location})` : ''}
+- N° dossier : ${target.dossierNumber ?? 'Aucun'}
+- Date d'arrivée : ${target.arrivalDate ? new Date(target.arrivalDate).toLocaleDateString('fr-FR') : 'Non renseignée'}
+- Statut réunification : ${target.reunificationStatus ?? 'Non défini'}
+- Circonstances : ${target.circumstances ?? 'Non renseignées'}
 - Description : ${target.description}
 - Physique : ${target.physicalDescription ?? 'Non renseigné'}
 - Médical : ${target.medicalConditions ?? 'Aucun'}
-- Date disparition : ${new Date(target.dateMissing).toLocaleDateString('fr-FR')}`;
+- Date de déplacement : ${new Date(target.dateMissing).toLocaleDateString('fr-FR')}`;
 
-  const othersInfo = others.map((p) => `
+  const othersInfo = others.map((p: any) => `
 - ID : ${p.id}
+- Type : ${p.personType}
 - Nom : ${p.fullName}
-- Âge : ${p.age ?? '?'}
-- Sexe : ${(p as any).gender === 'male' ? 'M' : (p as any).gender === 'female' ? 'F' : '?'}
-- Ethnie : ${(p as any).ethnicity ?? '?'}
-- Langues : ${(p as any).languages ?? '?'}
-- Père : ${(p as any).fatherName ?? '?'} / Mère : ${(p as any).motherName ?? '?'}
-- Origine : ${(p as any).originLocation ?? '?'}
-- Dernier lieu : ${p.lastKnownLocation ?? 'Inconnu'}
-- Circonstances : ${(p as any).circumstances ?? '?'}
-- Description : ${p.description.slice(0, 120)}...
-- Médical : ${p.medicalConditions ?? 'Aucun'}
-- Date : ${new Date(p.dateMissing).toLocaleDateString('fr-FR')}`).join('\n');
+- Âge : ${p.age ?? '?'} | Sexe : ${p.gender === 'male' ? 'M' : p.gender === 'female' ? 'F' : '?'}
+- Ethnie : ${p.ethnicity ?? '?'} | Langues : ${p.languages ?? '?'}
+- Père : ${p.fatherName ?? '?'} | Mère : ${p.motherName ?? '?'}
+- Origine : ${p.originLocation ?? '?'} | Camp : ${p.camp?.name ?? '?'}${p.camp?.location ? ` (${p.camp.location})` : ''}
+- N° dossier : ${p.dossierNumber ?? 'Aucun'} | Arrivée : ${p.arrivalDate ? new Date(p.arrivalDate).toLocaleDateString('fr-FR') : '?'}
+- Circonstances : ${(p.circumstances ?? '?').slice(0, 80)}
+- Description : ${p.description.slice(0, 100)}
+- Médical : ${p.medicalConditions ?? 'Aucun'}`).join('\n');
 
   const userPrompt = `${targetInfo}
 
-AUTRES PERSONNES DISPARUES À COMPARER (${others.length}) :
+AUTRES RÉFUGIÉS / DÉPLACÉS À COMPARER (${others.length}) :
 ${othersInfo}
 
-Analyse les liens potentiels entre la PERSONNE CIBLE et les AUTRES. Retiens uniquement les liens avec confidence >= 40.`;
+Analyse les liens familiaux potentiels entre la PERSONNE CIBLE et les AUTRES. Focus sur : noms du père/mère identiques, même ethnie + même région, même période d'arrivée au camp. Retiens uniquement les liens avec confidence >= 40.`;
 
   try {
     const response = await deepseekChat([

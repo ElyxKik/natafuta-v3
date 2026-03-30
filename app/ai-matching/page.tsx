@@ -23,7 +23,13 @@ interface Match {
   ageSimilarity: number;
   locationSimilarity: number;
   notes: string | null;
-  missingPerson: { id: string; fullName: string; lastKnownLocation: string | null; urgencyLevel: string; aiCrossLinks: string | null };
+  missingPerson: {
+    id: string; fullName: string; lastKnownLocation: string | null; urgencyLevel: string;
+    aiCrossLinks: string | null; personType: string;
+    dossierNumber: string | null; reunificationStatus: string | null;
+    camp: { name: string; location: string } | null;
+    originLocation: string | null;
+  };
   familyMember: { id: string; fullName: string; relationship: string };
 }
 
@@ -37,28 +43,28 @@ const CAPABILITIES = [
   {
     icon: FileSearch,
     title: 'Analyse de correspondances',
-    desc: 'ElikIA évalue chaque correspondance entre une personne disparue et un membre de famille en croisant noms, âge, localisation et descriptions physiques. Elle produit un score de confiance enrichi et identifie les facteurs déterminants.',
+    desc: 'ElikIA évalue chaque correspondance entre un réfugié/déplacé et un membre de famille en croisant noms, âge, ethnie, camp d\'accueil, numéro de dossier et circonstances de déplacement. Elle produit un score enrichi et identifie les facteurs déterminants.',
     color: 'text-blue-600',
     bg: 'bg-blue-50 border-blue-200',
   },
   {
     icon: Link2,
     title: 'Détection de liens croisés',
-    desc: 'ElikIA analyse l\'ensemble des personnes disparues actives pour détecter des liens cachés : fratries, familles dispersées, disparitions simultanées. Elle prend en compte les noms ethniques (Lingala, Swahili, Kikongo, Tshiluba) et les mouvements migratoires.',
+    desc: 'ElikIA analyse les réfugiés et déplacés internes actifs pour détecter des familles séparées dans des camps différents. Elle utilise les noms des parents, l\'ethnie, la région d\'origine et la période d\'arrivée comme indices clés.',
     color: 'text-purple-600',
     bg: 'bg-purple-50 border-purple-200',
   },
   {
     icon: Users,
     title: 'Résumés et recommandations',
-    desc: 'Pour chaque cas, ElikIA rédige un résumé clair en français et formule une recommandation concrète à l\'agent : vérifier l\'identité, contacter la famille, ouvrir une enquête croisée ou clôturer le dossier.',
+    desc: 'Pour chaque dossier, ElikIA rédige un résumé humanitaire et formule une recommandation concrète à l\'agent : contacter le camp, vérifier le dossier, mettre à jour le statut de réunification ou escalader le cas.',
     color: 'text-green-600',
     bg: 'bg-green-50 border-green-200',
   },
   {
     icon: Shield,
-    title: 'Contexte culturel & terrain',
-    desc: 'Formée sur les réalités de l\'Afrique centrale, ElikIA comprend les variations orthographiques des noms locaux, les tolérances d\'âge dans les déclarations rurales et les contextes de déplacement liés aux conflits.',
+    title: 'Contexte humanitaire & terrain',
+    desc: 'ElikIA comprend les réalités des déplacements forcés en RDC : variations orthographiques des noms (Lingala, Swahili, Kinyarwanda, Kirundi, Tshiluba), approximations d\'âge en contexte de crise, et axes migratoires des conflits Est-RDC.',
     color: 'text-orange-600',
     bg: 'bg-orange-50 border-orange-200',
   },
@@ -173,8 +179,8 @@ export default function ElikIAPage() {
               </span>
             </div>
             <p className="mt-2 text-purple-100 text-sm leading-relaxed max-w-2xl">
-              Agent IA spécialisé dans la <strong className="text-white">recherche de personnes disparues</strong> et la <strong className="text-white">réunification familiale</strong> en Afrique centrale.
-              ElikIA analyse chaque correspondance avec précision, détecte les liens cachés entre dossiers et guide les agents vers les bonnes décisions.
+              Agent IA humanitaire spécialisé dans la <strong className="text-white">réunification familiale des réfugiés et déplacés internes</strong> en RDC.
+              ElikIA analyse chaque dossier en tenant compte du camp, du numéro de dossier, de l'ethnie et des circonstances de déplacement pour guider les agents vers les bonnes décisions.
             </p>
           </div>
           <button
@@ -274,6 +280,17 @@ export default function ElikIAPage() {
             const factors: Factor[] = m.aiFactors ? JSON.parse(m.aiFactors) : [];
             const isExpanded = expandedId === m.id;
             const isAnalyzing = analyzingId === m.id;
+            const pt = m.missingPerson.personType;
+            const personTypeLabel = pt === 'refugee' ? 'Réfugié' : pt === 'displaced' ? 'Déplacé interne' : 'Disparu';
+            const personTypeBg = pt === 'refugee' ? 'bg-blue-100 text-blue-700' : pt === 'displaced' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600';
+            const reunifBadge: Record<string, { label: string; cls: string }> = {
+              pending: { label: 'Réunification en attente', cls: 'bg-gray-100 text-gray-500' },
+              in_progress: { label: 'Réunification en cours', cls: 'bg-blue-100 text-blue-600' },
+              reunified: { label: 'Réunifié ✓', cls: 'bg-green-100 text-green-700' },
+              closed: { label: 'Dossier fermé', cls: 'bg-red-100 text-red-600' },
+            };
+            const rs = m.missingPerson.reunificationStatus;
+            const personDetailPath = pt === 'refugee' ? `/refugees/${m.missingPerson.id}` : pt === 'displaced' ? `/displaced/${m.missingPerson.id}` : `/missing/${m.missingPerson.id}`;
 
             return (
               <div key={m.id} className={`border rounded-xl overflow-hidden transition-shadow hover:shadow-sm ${m.aiAnalyzedAt ? 'border-purple-200' : 'border-gray-200'}`}>
@@ -284,14 +301,25 @@ export default function ElikIAPage() {
                       <span className="font-semibold text-gray-800">{m.familyMember.fullName}</span>
                       <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{m.familyMember.relationship}</span>
                       <span className="text-gray-300">→</span>
-                      <Link href={`/missing/${m.missingPerson.id}`} className="font-semibold text-blue-600 hover:text-blue-800 truncate">
+                      <Link href={personDetailPath} className="font-semibold text-blue-600 hover:text-blue-800 truncate">
                         {m.missingPerson.fullName}
                       </Link>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${personTypeBg}`}>{personTypeLabel}</span>
                       <MatchStatusBadge status={m.status} />
                     </div>
-                    {m.missingPerson.lastKnownLocation && (
-                      <p className="text-xs text-gray-400 flex items-center gap-1"><MapPin className="h-3 w-3" /> {m.missingPerson.lastKnownLocation}</p>
-                    )}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                      {m.missingPerson.camp && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />{m.missingPerson.camp.name}{m.missingPerson.camp.location ? ` — ${m.missingPerson.camp.location}` : ''}
+                        </p>
+                      )}
+                      {m.missingPerson.dossierNumber && (
+                        <p className="text-xs text-gray-400">N° {m.missingPerson.dossierNumber}</p>
+                      )}
+                      {rs && reunifBadge[rs] && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${reunifBadge[rs].cls}`}>{reunifBadge[rs].label}</span>
+                      )}
+                    </div>
                     {m.aiSummary && (
                       <div className="mt-2 flex gap-2 items-start bg-purple-50 rounded-lg p-2.5 border border-purple-100">
                         <Brain className="h-3.5 w-3.5 text-purple-400 shrink-0 mt-0.5" />
@@ -335,10 +363,10 @@ export default function ElikIAPage() {
                         </button>
                       )}
                       <Link
-                        href={`/family-matches/${m.id}`}
+                        href={personDetailPath}
                         className="flex items-center gap-1 text-gray-500 hover:text-gray-700 text-xs px-2 py-1.5 border rounded-lg transition-colors"
                       >
-                        <Search className="h-3 w-3" /> Dossier
+                        <Search className="h-3 w-3" /> Fiche
                       </Link>
                     </div>
                     {m.aiAnalyzedAt && (
@@ -350,6 +378,41 @@ export default function ElikIAPage() {
                 {/* Expanded details */}
                 {isExpanded && (
                   <div className="border-t bg-gray-50 p-4 space-y-4">
+
+                    {/* Infos humanitaires */}
+                    {(m.missingPerson.camp || m.missingPerson.dossierNumber || m.missingPerson.originLocation || rs) && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Informations humanitaires</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {m.missingPerson.camp && (
+                            <div className="bg-white border rounded-lg p-2">
+                              <p className="text-xs text-gray-400">Camp</p>
+                              <p className="text-sm font-medium text-gray-700">{m.missingPerson.camp.name}</p>
+                              {m.missingPerson.camp.location && <p className="text-xs text-gray-400">{m.missingPerson.camp.location}</p>}
+                            </div>
+                          )}
+                          {m.missingPerson.dossierNumber && (
+                            <div className="bg-white border rounded-lg p-2">
+                              <p className="text-xs text-gray-400">N° de dossier</p>
+                              <p className="text-sm font-medium text-gray-700">{m.missingPerson.dossierNumber}</p>
+                            </div>
+                          )}
+                          {m.missingPerson.originLocation && (
+                            <div className="bg-white border rounded-lg p-2">
+                              <p className="text-xs text-gray-400">Lieu d'origine</p>
+                              <p className="text-sm font-medium text-gray-700">{m.missingPerson.originLocation}</p>
+                            </div>
+                          )}
+                          {rs && reunifBadge[rs] && (
+                            <div className="bg-white border rounded-lg p-2">
+                              <p className="text-xs text-gray-400">Statut réunification</p>
+                              <p className={`text-sm font-medium ${reunifBadge[rs].cls.replace('bg-', 'text-').replace('100', '700')}`}>{reunifBadge[rs].label}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Scores algorithmiques</p>
                       <div className="grid grid-cols-3 gap-2">
