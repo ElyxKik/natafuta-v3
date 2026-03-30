@@ -86,8 +86,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
   }
 
+  const db = prisma as any;
+
   const [camps, persons] = await Promise.all([
-    prisma.camp.findMany({
+    db.camp.findMany({
       where: { status: 'active' },
       select: {
         id: true, name: true, type: true, location: true, province: true,
@@ -97,7 +99,7 @@ export async function GET() {
         _count: { select: { persons: true } },
       },
     }),
-    (prisma as any).missingPerson.findMany({
+    db.missingPerson.findMany({
       where: {
         status: 'active',
         personType: { in: ['refugee', 'displaced'] },
