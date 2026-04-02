@@ -86,7 +86,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
   }
 
-  const camps = await prisma.camp.findMany({
+  const camps = await (prisma as any).camp.findMany({
     where: { status: 'active' },
     select: {
       id: true, name: true, type: true, location: true, province: true,

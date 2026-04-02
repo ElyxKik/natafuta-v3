@@ -15,7 +15,7 @@ export async function GET() {
     const missing = await prisma.missingPerson.count({ where: { personType: 'missing' } });
     const refugee = await prisma.missingPerson.count({ where: { personType: 'refugee' } });
     const displaced = await prisma.missingPerson.count({ where: { personType: 'displaced' } });
-    const camps = await prisma.camp.count({ where: { status: 'active' } });
+    const camps = await (prisma as any).camp.count({ where: { status: 'active' } });
     const reunified = await prisma.missingPerson.count({ where: { personType: { in: ['refugee', 'displaced'] }, reunificationStatus: 'reunified' } });
     const reunificationInProgress = await prisma.missingPerson.count({ where: { personType: { in: ['refugee', 'displaced'] }, reunificationStatus: 'in_progress' } });
 

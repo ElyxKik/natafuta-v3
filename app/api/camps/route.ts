@@ -27,8 +27,8 @@ export async function GET(req: Request) {
       ];
     }
 
-    const total = await prisma.camp.count({ where });
-    const camps = await prisma.camp.findMany({
+    const total = await (prisma as any).camp.count({ where });
+    const camps = await (prisma as any).camp.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
