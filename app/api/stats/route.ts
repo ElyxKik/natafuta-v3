@@ -12,16 +12,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
     }
 
-    const db = prisma as any;
-
-    const [missing, refugee, displaced, camps, reunified, reunificationInProgress] = await Promise.all([
-      db.missingPerson.count({ where: { personType: 'missing' } }),
-      db.missingPerson.count({ where: { personType: 'refugee' } }),
-      db.missingPerson.count({ where: { personType: 'displaced' } }),
-      db.camp.count({ where: { status: 'active' } }),
-      db.missingPerson.count({ where: { personType: { in: ['refugee', 'displaced'] }, reunificationStatus: 'reunified' } }),
-      db.missingPerson.count({ where: { personType: { in: ['refugee', 'displaced'] }, reunificationStatus: 'in_progress' } }),
-    ]);
+    const missing = await prisma.missingPerson.count({ where: { personType: 'missing' } });
+    const refugee = await prisma.missingPerson.count({ where: { personType: 'refugee' } });
+    const displaced = await prisma.missingPerson.count({ where: { personType: 'displaced' } });
+    const camps = await prisma.camp.count({ where: { status: 'active' } });
+    const reunified = await prisma.missingPerson.count({ where: { personType: { in: ['refugee', 'displaced'] }, reunificationStatus: 'reunified' } });
+    const reunificationInProgress = await prisma.missingPerson.count({ where: { personType: { in: ['refugee', 'displaced'] }, reunificationStatus: 'in_progress' } });
 
     return NextResponse.json({ missing, refugee, displaced, camps, reunified, reunificationInProgress });
   } catch (error: any) {

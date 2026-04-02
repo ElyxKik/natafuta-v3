@@ -27,20 +27,17 @@ export async function GET(req: Request) {
       ];
     }
 
-    const db = prisma as any;
-    const [total, camps] = await Promise.all([
-      db.camp.count({ where }),
-      db.camp.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          createdBy: { select: { name: true, email: true } },
-          _count: { select: { persons: true } },
-        },
-      }),
-    ]);
+    const total = await prisma.camp.count({ where });
+    const camps = await prisma.camp.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        createdBy: { select: { name: true, email: true } },
+        _count: { select: { persons: true } },
+      },
+    });
 
     return NextResponse.json({ camps, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
   } catch (error: any) {

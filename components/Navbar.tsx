@@ -15,8 +15,27 @@ export function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Agents use the sidebar via AgentLayout — no navbar needed
-  // Also hide while loading to avoid flash
-  if (isAgent || status === 'loading') return null;
+  if (isAgent) return null;
+
+  // Show a minimal navbar skeleton while session is loading to prevent layout shift
+  if (status === 'loading') {
+    return (
+      <header className="bg-blue-800 text-white shadow-md sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex justify-between items-center">
+            <Link href="/" className="text-2xl font-bold flex items-center gap-2">
+              <img src="/logo.png" alt="Natafuta" className="h-10 w-10" />
+              <span className="hidden sm:inline">Natafuta</span>
+            </Link>
+            <div className="hidden md:flex items-center space-x-2">
+              <div className="h-8 w-20 bg-blue-700 rounded-lg animate-pulse" />
+              <div className="h-8 w-20 bg-blue-700 rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   // For visitors: show full navbar
   return (

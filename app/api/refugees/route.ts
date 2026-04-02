@@ -31,17 +31,14 @@ export async function GET(req: Request) {
       ];
     }
 
-    const db = prisma as any;
-    const [total, persons] = await Promise.all([
-      db.missingPerson.count({ where }),
-      db.missingPerson.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: { camp: true },
-      }),
-    ]);
+    const total = await prisma.missingPerson.count({ where });
+    const persons = await prisma.missingPerson.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: { camp: true },
+    });
 
     return NextResponse.json({ persons, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
   } catch (error: any) {

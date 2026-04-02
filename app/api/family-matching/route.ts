@@ -53,26 +53,23 @@ export async function GET() {
     if (!session?.user || (session.user as any).userType !== 'agent') {
       return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
     }
-    const [total, totalFamily, totalMatches, pendingMatches, verifiedMatches, confirmedMatches, rejectedMatches, recentMatches, highConfidence, mediumConfidence, lowConfidence] =
-      await Promise.all([
-        prisma.missingPerson.count(),
-        prisma.familyMember.count(),
-        prisma.familyMatch.count(),
-        prisma.familyMatch.count({ where: { status: 'pending' } }),
-        prisma.familyMatch.count({ where: { status: 'verified' } }),
-        prisma.familyMatch.count({ where: { status: 'confirmed' } }),
-        prisma.familyMatch.count({ where: { status: 'rejected' } }),
-        (prisma as any).familyMatch.findMany({
-          orderBy: { createdAt: 'desc' }, take: 10,
-          include: {
-            missingPerson: { select: { id: true, fullName: true, personType: true } },
-            familyMember: { select: { id: true, fullName: true } },
-          },
-        }),
-        prisma.familyMatch.count({ where: { confidenceScore: { gte: 80 } } }),
-        prisma.familyMatch.count({ where: { confidenceScore: { gte: 60, lt: 80 } } }),
-        prisma.familyMatch.count({ where: { confidenceScore: { lt: 60 } } }),
-      ]);
+    const total = await prisma.missingPerson.count();
+    const totalFamily = await prisma.familyMember.count();
+    const totalMatches = await prisma.familyMatch.count();
+    const pendingMatches = await prisma.familyMatch.count({ where: { status: 'pending' } });
+    const verifiedMatches = await prisma.familyMatch.count({ where: { status: 'verified' } });
+    const confirmedMatches = await prisma.familyMatch.count({ where: { status: 'confirmed' } });
+    const rejectedMatches = await prisma.familyMatch.count({ where: { status: 'rejected' } });
+    const recentMatches = await prisma.familyMatch.findMany({
+      orderBy: { createdAt: 'desc' }, take: 10,
+      include: {
+        missingPerson: { select: { id: true, fullName: true, personType: true } },
+        familyMember: { select: { id: true, fullName: true } },
+      },
+    });
+    const highConfidence = await prisma.familyMatch.count({ where: { confidenceScore: { gte: 80 } } });
+    const mediumConfidence = await prisma.familyMatch.count({ where: { confidenceScore: { gte: 60, lt: 80 } } });
+    const lowConfidence = await prisma.familyMatch.count({ where: { confidenceScore: { lt: 60 } } });
     const successRate = totalMatches > 0 ? Math.round((confirmedMatches / totalMatches) * 100) : 0;
     return NextResponse.json({ totalMissingPersons: total, totalFamilyMembers: totalFamily, totalMatches, pendingMatches, verifiedMatches, confirmedMatches, rejectedMatches, recentMatches, highConfidence, mediumConfidence, lowConfidence, successRate });
   } catch (error: any) {

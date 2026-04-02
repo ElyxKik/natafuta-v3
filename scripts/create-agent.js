@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function createAgent() {
-  const email = 'ely@gmail.com';
+  const email = 'agent.test3@natafuta.org';
   const password = 'Agent@123456'; // Mot de passe par défaut
-  const name = 'Agent Ely';
+  const name = 'Agent Test 3';
 
   try {
     // Vérifier si l'utilisateur existe déjà

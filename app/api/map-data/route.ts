@@ -86,34 +86,30 @@ export async function GET() {
     return NextResponse.json({ error: 'Non autorisé.' }, { status: 403 });
   }
 
-  const db = prisma as any;
-
-  const [camps, persons] = await Promise.all([
-    db.camp.findMany({
-      where: { status: 'active' },
-      select: {
-        id: true, name: true, type: true, location: true, province: true,
-        capacity: true, currentOccupancy: true, status: true,
-        latitude: true, longitude: true,
-        contactPerson: true, contactPhone: true,
-        _count: { select: { persons: true } },
-      },
-    }),
-    db.missingPerson.findMany({
-      where: {
-        status: 'active',
-        personType: { in: ['refugee', 'displaced'] },
-      },
-      select: {
-        id: true, fullName: true, personType: true, age: true, gender: true,
-        lastKnownLocation: true, originLocation: true,
-        urgencyLevel: true, reunificationStatus: true,
-        dossierNumber: true, arrivalDate: true,
-        ethnicity: true,
-        camp: { select: { id: true, name: true, location: true } },
-      },
-    }),
-  ]);
+  const camps = await prisma.camp.findMany({
+    where: { status: 'active' },
+    select: {
+      id: true, name: true, type: true, location: true, province: true,
+      capacity: true, currentOccupancy: true, status: true,
+      latitude: true, longitude: true,
+      contactPerson: true, contactPhone: true,
+      _count: { select: { persons: true } },
+    },
+  });
+  const persons = await prisma.missingPerson.findMany({
+    where: {
+      status: 'active',
+      personType: { in: ['refugee', 'displaced'] },
+    },
+    select: {
+      id: true, fullName: true, personType: true, age: true, gender: true,
+      lastKnownLocation: true, originLocation: true,
+      urgencyLevel: true, reunificationStatus: true,
+      dossierNumber: true, arrivalDate: true,
+      ethnicity: true,
+      camp: { select: { id: true, name: true, location: true } },
+    },
+  });
 
   // Résoudre les coordonnées des camps
   const campFeatures = camps.map((c: any) => {
